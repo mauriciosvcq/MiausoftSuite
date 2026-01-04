@@ -201,25 +201,46 @@ def _run(cmd: List[str], *, cwd: Optional[Path] = None) -> None:
         raise RuntimeError("Subprocess failed rc=" + str(p.returncode) + "\n" + out)
 
 def _resolve_icon_path() -> Path:
-    # Prioridad: junto al proyecto -> ruta absoluta
-    candidates = [
-        _base_dir() / "Miausoft.ico",
-        Path(r"E:\MiausoftSuite\Miausoft.ico"),
-    ]
+    # Prioridad: junto al proyecto -> env específicos
+    candidates: List[Path] = []
+    candidates.append(_base_dir() / "Miausoft.ico")
+
+    env_icon = os.environ.get("MIAUSOFT_ICON_PATH", "")
+    if env_icon:
+        candidates.append(Path(env_icon))
+
+    env_root = os.environ.get("MIAUSOFT_PROJECT_ROOT", "")
+    if env_root:
+        candidates.append(Path(env_root) / "Miausoft.ico")
+
+    env_assets = os.environ.get("MIAUSOFT_ASSETS_DIR", "")
+    if env_assets:
+        candidates.append(Path(env_assets) / "Miausoft.ico")
     for c in candidates:
         if c.exists():
             return c
-    raise FileNotFoundError("No se encontró Miausoft.ico (proyecto o E:\\MiausoftSuite\\Miausoft.ico)")
+    raise FileNotFoundError(
+        "No se encontró Miausoft.ico (proyecto, MIAUSOFT_ICON_PATH, "
+        "MIAUSOFT_PROJECT_ROOT, MIAUSOFT_ASSETS_DIR)"
+    )
 
 def _resolve_font_path() -> Path:
-    candidates = [
-        _base_dir() / "fonts" / "Comfortaa.ttf",
-        Path(r"E:\MiausoftSuite\fonts\Comfortaa.ttf"),
-    ]
+    candidates: List[Path] = []
+    candidates.append(_base_dir() / "fonts" / "Comfortaa.ttf")
+
+    env_fonts = os.environ.get("MIAUSOFT_FONTS_DIR", "")
+    if env_fonts:
+        candidates.append(Path(env_fonts) / "Comfortaa.ttf")
+
+    env_root = os.environ.get("MIAUSOFT_PROJECT_ROOT", "")
+    if env_root:
+        candidates.append(Path(env_root) / "fonts" / "Comfortaa.ttf")
     for c in candidates:
         if c.exists():
             return c
-    raise FileNotFoundError("No se encontró Comfortaa.ttf (.\\fonts o E:\\MiausoftSuite\\fonts\\Comfortaa.ttf)")
+    raise FileNotFoundError(
+        "No se encontró Comfortaa.ttf (.\\fonts, MIAUSOFT_FONTS_DIR o MIAUSOFT_PROJECT_ROOT)"
+    )
 
 def _resolve_script_path(app_id: str) -> Path:
     p = _base_dir() / SCRIPT_FILENAMES[app_id]
@@ -658,7 +679,7 @@ def perform_install(sendto_priority: bool, target_dir: Path, *, status_cb=None, 
 
     # Icono persistente (best-effort)
     # - Preferimos copiar el icono embebido (MEIPASS) a SendTo\Miausoft.ico.
-    # - Si no existe, intentamos usar E:\MiausoftSuite\Miausoft.ico (si está disponible).
+    # - Si no existe, intentamos usar rutas configurables por env (si están disponibles).
     icon_path: Optional[Path] = None
     try:
         if icon_tmp.exists():
@@ -666,8 +687,15 @@ def perform_install(sendto_priority: bool, target_dir: Path, *, status_cb=None, 
             _copy_file_atomic(icon_tmp, icon_persist)
             icon_path = icon_persist
         else:
-            ext_ico = Path(r"E:\MiausoftSuite\Miausoft.ico")
-            if ext_ico.exists():
+            ext_ico: Optional[Path] = None
+            env_icon = os.environ.get("MIAUSOFT_ICON_PATH", "")
+            if env_icon:
+                ext_ico = Path(env_icon)
+            else:
+                env_root = os.environ.get("MIAUSOFT_PROJECT_ROOT", "")
+                if env_root:
+                    ext_ico = Path(env_root) / "Miausoft.ico"
+            if ext_ico and ext_ico.exists():
                 icon_path = ext_ico
     except Exception:
         icon_path = None

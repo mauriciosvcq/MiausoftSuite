@@ -821,11 +821,13 @@ class Theme:
                 except Exception:
                     pass
 
-                # Ruta absoluta conocida (fallback)
-                try:
-                    candidates.append(_Path(r'E:\MiausoftSuite\Miausoft.ico'))
-                except Exception:
-                    pass
+                # Fallback configurable (evita rutas locales hardcodeadas)
+                env_root = str(_os.environ.get('MIAUSOFT_PROJECT_ROOT', '')).strip()
+                if env_root:
+                    try:
+                        candidates.append(_Path(env_root) / str(icon_name))
+                    except Exception:
+                        pass
 
                 ico_path = None
                 for c in candidates:
