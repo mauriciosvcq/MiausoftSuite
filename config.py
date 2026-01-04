@@ -1774,11 +1774,6 @@ class ProgressDialog(tk.Frame):
         # Texto: layout fijo para evitar jitter y GARANTIZAR el subtítulo debajo del título.
         sub_present = bool((self._display_subtitle() or "").strip())
 
-        # 1 línea de título (suficiente para 'Procesando…') y 1 línea de subtítulo si existe.
-        self._max_title_lines = 1
-        self._max_sub_lines = 1 if sub_present else 0
-        self._render_text()
-
         def _linespace(font_obj, default_px: int) -> int:
             try:
                 ls = int(font_obj.metrics("linespace") or 0)
@@ -1803,11 +1798,26 @@ class ProgressDialog(tk.Frame):
         lh_t = _linespace(ft, 18) if ft is not None else 18
         lh_s = _linespace(fs, 14) if fs is not None else 14
 
+        # Calcular cantidad de líneas máximas para el título según alto disponible.
+        bottom_limit = int(info_pad_top + inner_h)
+        available_text_h = max(0, int(bottom_limit - y_title))
+        sub_lines = 1 if sub_present else 0
+        sub_reserve = (int(y_gap2) if sub_present else 0) + int(sub_lines * lh_s)
+        if lh_t <= 0:
+            max_title_lines = 1
+        else:
+            usable = max(0, int(available_text_h - sub_reserve))
+            max_title_lines = max(1, int(usable // lh_t)) if usable > 0 else 1
+
+        self._max_title_lines = max_title_lines
+        self._max_sub_lines = sub_lines
+        self._render_text()
+
         title_h = int(self._max_title_lines * lh_t)
         sub_h = int(self._max_sub_lines * lh_s)
 
-        # y del subtítulo: siempre la línea inmediata debajo del título (con gap configurable).
-        y_sub = y_title + title_h + (y_gap2 if sub_present else 0)
+        # y del subtítulo: siempre la línea inmediata debajo del título (sin gap extra).
+        y_sub = y_title + title_h
 
         # Anti-recorte (sin reflow): si el bloque se sale, subirlo lo máximo posible.
         try:
