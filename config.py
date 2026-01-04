@@ -1802,7 +1802,7 @@ class ProgressDialog(tk.Frame):
         bottom_limit = int(info_pad_top + inner_h)
         available_text_h = max(0, int(bottom_limit - y_title))
         sub_lines = 1 if sub_present else 0
-        sub_reserve = (int(y_gap2) if sub_present else 0) + int(sub_lines * lh_s)
+        sub_reserve = int(sub_lines * lh_s)
         if lh_t <= 0:
             max_title_lines = 1
         else:
@@ -1813,35 +1813,18 @@ class ProgressDialog(tk.Frame):
         self._max_sub_lines = sub_lines
         self._render_text()
 
-        title_h = int(self._max_title_lines * lh_t)
+        # Medir líneas reales del título renderizado para encadenar el subtítulo.
+        try:
+            title_text = str(self.lbl_main.cget("text") or "")
+            actual_title_lines = max(1, len(title_text.splitlines()))
+        except Exception:
+            actual_title_lines = max(1, int(self._max_title_lines or 1))
+
+        title_h = int(actual_title_lines * lh_t)
         sub_h = int(self._max_sub_lines * lh_s)
 
-        # y del subtítulo: siempre la línea inmediata debajo del título (sin gap extra).
+        # y del subtítulo: siempre la línea inmediata debajo del título.
         y_sub = y_title + title_h
-
-        # Anti-recorte (sin reflow): si el bloque se sale, subirlo lo máximo posible.
-        try:
-            bottom_limit = int(info_pad_top + inner_h)
-            block_bottom = max(int(y_bar + int(getattr(self.progress, 'height', 0) or 0)),
-                               int(y_sub + sub_h) if sub_h > 0 else int(y_title + title_h))
-            if block_bottom > bottom_limit:
-                overshoot = int(block_bottom - bottom_limit)
-                avail_up = max(0, int(y_bar - info_pad_top))
-                shift = min(overshoot, avail_up)
-                if shift > 0:
-                    y_bar -= shift
-                    y_title -= shift
-                    y_sub -= shift
-                    try:
-                        self.progress.place_configure(y=y_bar)
-                    except Exception:
-                        try:
-                            self.progress.place(x=info_pad_left, y=y_bar)
-                        except Exception:
-                            pass
-        except Exception:
-            pass
-
 
         # Title
         self.lbl_main.place(x=info_pad_left, y=y_title, width=inner_w, height=int(title_h))
