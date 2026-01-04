@@ -204,22 +204,32 @@ def _resolve_icon_path() -> Path:
     # Prioridad: junto al proyecto -> ruta absoluta
     candidates = [
         _base_dir() / "Miausoft.ico",
-        Path(r"E:\MiausoftSuite\Miausoft.ico"),
     ]
+    env_icon = os.getenv("MIAUSOFT_ICON_PATH", "").strip()
+    if env_icon:
+        try:
+            candidates.append(Path(env_icon))
+        except Exception:
+            pass
     for c in candidates:
         if c.exists():
             return c
-    raise FileNotFoundError("No se encontró Miausoft.ico (proyecto o E:\\MiausoftSuite\\Miausoft.ico)")
+    raise FileNotFoundError("No se encontró Miausoft.ico (proyecto o MIAUSOFT_ICON_PATH).")
 
 def _resolve_font_path() -> Path:
     candidates = [
         _base_dir() / "fonts" / "Comfortaa.ttf",
-        Path(r"E:\MiausoftSuite\fonts\Comfortaa.ttf"),
     ]
+    env_fonts = os.getenv("MIAUSOFT_FONTS_DIR", "").strip()
+    if env_fonts:
+        try:
+            candidates.append(Path(env_fonts) / "Comfortaa.ttf")
+        except Exception:
+            pass
     for c in candidates:
         if c.exists():
             return c
-    raise FileNotFoundError("No se encontró Comfortaa.ttf (.\\fonts o E:\\MiausoftSuite\\fonts\\Comfortaa.ttf)")
+    raise FileNotFoundError("No se encontró Comfortaa.ttf (.\\fonts o MIAUSOFT_FONTS_DIR).")
 
 def _resolve_script_path(app_id: str) -> Path:
     p = _base_dir() / SCRIPT_FILENAMES[app_id]
@@ -658,7 +668,7 @@ def perform_install(sendto_priority: bool, target_dir: Path, *, status_cb=None, 
 
     # Icono persistente (best-effort)
     # - Preferimos copiar el icono embebido (MEIPASS) a SendTo\Miausoft.ico.
-    # - Si no existe, intentamos usar E:\MiausoftSuite\Miausoft.ico (si está disponible).
+    # - Si no existe, usamos MIAUSOFT_ICON_PATH (si está disponible).
     icon_path: Optional[Path] = None
     try:
         if icon_tmp.exists():
@@ -666,9 +676,14 @@ def perform_install(sendto_priority: bool, target_dir: Path, *, status_cb=None, 
             _copy_file_atomic(icon_tmp, icon_persist)
             icon_path = icon_persist
         else:
-            ext_ico = Path(r"E:\MiausoftSuite\Miausoft.ico")
-            if ext_ico.exists():
-                icon_path = ext_ico
+            env_icon = os.getenv("MIAUSOFT_ICON_PATH", "").strip()
+            if env_icon:
+                try:
+                    ext_ico = Path(env_icon)
+                    if ext_ico.exists():
+                        icon_path = ext_ico
+                except Exception:
+                    icon_path = None
     except Exception:
         icon_path = None
 

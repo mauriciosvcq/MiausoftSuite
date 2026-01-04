@@ -821,12 +821,6 @@ class Theme:
                 except Exception:
                     pass
 
-                # Ruta absoluta conocida (fallback)
-                try:
-                    candidates.append(_Path(r'E:\MiausoftSuite\Miausoft.ico'))
-                except Exception:
-                    pass
-
                 ico_path = None
                 for c in candidates:
                     try:
@@ -1494,6 +1488,8 @@ class ProgressDialog(tk.Frame):
         self._raw_subtitle = ""
         self._font_title = None
         self._font_sub = None
+        self._title_lines = 1
+        self._sub_lines = 0
 
         # Estado
         self._wrap_px = 300
@@ -1594,18 +1590,31 @@ class ProgressDialog(tk.Frame):
             w = max(120, int(getattr(self, "_wrap_px", 300)))
             ft = self._font_title or tkfont.Font(font=self.lbl_main.cget("font"))
             fs = self._font_sub or tkfont.Font(font=self.lbl_sub.cget("font"))
-            self.lbl_main.config(text=_wrap_ellipsis_px(self._raw_title, ft, w, max_lines=max(1, int(getattr(self, '_max_title_lines', 2)))))
+            title_text = _wrap_ellipsis_px(self._raw_title, ft, w, max_lines=max(1, int(getattr(self, '_max_title_lines', 2))))
+            self.lbl_main.config(text=title_text)
+            try:
+                self._title_lines = max(1, title_text.count("\n") + 1)
+            except Exception:
+                self._title_lines = 1
             _sub = self._display_subtitle()
             ms = max(0, int(getattr(self, '_max_sub_lines', 3)))
             if ms <= 0 or not (_sub or '').strip():
                 self.lbl_sub.config(text='')
+                self._sub_lines = 0
             else:
-                self.lbl_sub.config(text=_wrap_ellipsis_px(_sub, fs, w, max_lines=ms))
+                sub_text = _wrap_ellipsis_px(_sub, fs, w, max_lines=ms)
+                self.lbl_sub.config(text=sub_text)
+                try:
+                    self._sub_lines = max(1, sub_text.count("\n") + 1)
+                except Exception:
+                    self._sub_lines = 1
         except Exception:
             # fallback sin romper
             try:
                 self.lbl_main.config(text=str(self._raw_title or ""))
                 self.lbl_sub.config(text=str(self._display_subtitle() or ""))
+                self._title_lines = 1
+                self._sub_lines = 1 if str(self._display_subtitle() or "").strip() else 0
             except Exception:
                 pass
 
@@ -1772,11 +1781,6 @@ class ProgressDialog(tk.Frame):
         # Texto: layout fijo para evitar jitter y GARANTIZAR el subtítulo debajo del título.
         sub_present = bool((self._display_subtitle() or "").strip())
 
-        # 1 línea de título (suficiente para 'Procesando…') y 1 línea de subtítulo si existe.
-        self._max_title_lines = 1
-        self._max_sub_lines = 1 if sub_present else 0
-        self._render_text()
-
         def _linespace(font_obj, default_px: int) -> int:
             try:
                 ls = int(font_obj.metrics("linespace") or 0)
@@ -1801,11 +1805,22 @@ class ProgressDialog(tk.Frame):
         lh_t = _linespace(ft, 18) if ft is not None else 18
         lh_s = _linespace(fs, 14) if fs is not None else 14
 
-        title_h = int(self._max_title_lines * lh_t)
-        sub_h = int(self._max_sub_lines * lh_s)
+        # Calcular líneas máximas del título sin mover la barra/título (solo wrap).
+        # El subtítulo siempre será 1 línea (con elipsis si no cabe), justo debajo.
+        available_text_h = max(0, int(inner_h - (y_title - info_pad_top)))
+        reserve_sub = int((y_gap2 + lh_s) if sub_present else 0)
+        max_title_by_space = max(1, int((available_text_h - reserve_sub) / max(1, lh_t)))
+        self._max_title_lines = max(1, min(6, max_title_by_space))
+        self._max_sub_lines = 1 if sub_present else 0
+        self._render_text()
+
+        title_lines = max(1, int(getattr(self, "_title_lines", 1) or 1))
+        sub_lines = max(0, int(getattr(self, "_sub_lines", 0) or 0))
+        title_h = int(title_lines * lh_t)
+        sub_h = int(sub_lines * lh_s)
 
         # y del subtítulo: siempre la línea inmediata debajo del título (con gap configurable).
-        y_sub = y_title + title_h + (y_gap2 if sub_present else 0)
+        y_sub = y_title + title_h + (y_gap2 if sub_lines > 0 else 0)
 
         # Anti-recorte (sin reflow): si el bloque se sale, subirlo lo máximo posible.
         try:
