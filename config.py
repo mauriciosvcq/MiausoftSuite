@@ -1573,9 +1573,12 @@ class ProgressDialog(tk.Frame):
         self._schedule_layout()
 
     def set_subtitle(self, text: str):
+        prev_present = bool((self._display_subtitle() or "").strip())
         self._raw_subtitle = str(text or "")
         self._render_text()
-        self._schedule_layout()
+        new_present = bool((self._display_subtitle() or "").strip())
+        if prev_present != new_present:
+            self._schedule_layout()
 
     def _display_subtitle(self) -> str:
         base = str(self._raw_subtitle or "")
@@ -1649,8 +1652,9 @@ class ProgressDialog(tk.Frame):
         self.set_done(self.done_units + int(delta))
 
     def show_counts_in_subtitle(self, enable: bool):
+        prev_present = bool((self._display_subtitle() or "").strip())
         self.show_counts = bool(enable)
-        self._update_counts()
+        self._update_counts(prev_present)
 
     def show(self):
         if self._shown:
@@ -1678,10 +1682,14 @@ class ProgressDialog(tk.Frame):
             pass
 
     # ---- Internos ----
-    def _update_counts(self):
+    def _update_counts(self, prev_present: bool | None = None):
         # Renderiza siempre (activar/desactivar + cambios de done/total) sin desbordes
+        if prev_present is None:
+            prev_present = bool((self._display_subtitle() or "").strip())
         self._render_text()
-        self._schedule_layout()
+        new_present = bool((self._display_subtitle() or "").strip())
+        if prev_present != new_present:
+            self._schedule_layout()
 
 
     def _apply_metrics(self):
@@ -1821,30 +1829,6 @@ class ProgressDialog(tk.Frame):
 
         # y del subtítulo: siempre la línea inmediata debajo del título (con gap configurable).
         y_sub = y_title + title_h + (y_gap2 if sub_lines > 0 else 0)
-
-        # Anti-recorte (sin reflow): si el bloque se sale, subirlo lo máximo posible.
-        try:
-            bottom_limit = int(info_pad_top + inner_h)
-            block_bottom = max(int(y_bar + int(getattr(self.progress, 'height', 0) or 0)),
-                               int(y_sub + sub_h) if sub_h > 0 else int(y_title + title_h))
-            if block_bottom > bottom_limit:
-                overshoot = int(block_bottom - bottom_limit)
-                avail_up = max(0, int(y_bar - info_pad_top))
-                shift = min(overshoot, avail_up)
-                if shift > 0:
-                    y_bar -= shift
-                    y_title -= shift
-                    y_sub -= shift
-                    try:
-                        self.progress.place_configure(y=y_bar)
-                    except Exception:
-                        try:
-                            self.progress.place(x=info_pad_left, y=y_bar)
-                        except Exception:
-                            pass
-        except Exception:
-            pass
-
 
         # Title
         self.lbl_main.place(x=info_pad_left, y=y_title, width=inner_w, height=int(title_h))
