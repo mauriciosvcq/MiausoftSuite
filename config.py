@@ -1550,6 +1550,8 @@ class ProgressDialog(tk.Frame):
         self._title_wrap_px = 0
         self._title_last_max_lines = 0
         self._title_needs_wrap = True
+        self._layout_key = None
+        self._bar_geom = None
 
         # Estado
         self._wrap_px = 300
@@ -1823,16 +1825,21 @@ class ProgressDialog(tk.Frame):
         self.lbl_sub.config(font=self._font_sub)
 
         # Barra: ancho φ-relativo al ancho total y clamp al panel derecho; alineada a la izquierda
-        bar_w_target = int(W * float(lay.get("bar_w_rel_w", 1/(PHI*1))))
-        bar_w = max(10, min(inner_w, bar_w_target))
-        bar_h = max(int(lay["bar_min_h_px"]), int(H * float(lay["bar_h_rel_h"])))
-        bar_h = min(bar_h, inner_h)
+        layout_key = (W, H, inner_w, inner_h, info_pad_left, info_pad_top)
+        if self._layout_key != layout_key or not self._bar_geom:
+            bar_w_target = int(W * float(lay.get("bar_w_rel_w", 1/(PHI*1))))
+            bar_w = max(10, min(inner_w, bar_w_target))
+            bar_h = max(int(lay["bar_min_h_px"]), int(H * float(lay["bar_h_rel_h"])))
+            bar_h = min(bar_h, inner_h)
+            y_bar  = info_pad_top + int(float(lay["bar_top_rel_inner"]) * inner_h)
+            y_gap1 =              int(float(lay["gap_bar_title_rel_inner"]) * inner_h)
+            y_gap2 =              int(float(lay["gap_title_sub_rel_inner"]) * inner_h)
+            self._layout_key = layout_key
+            self._bar_geom = (bar_w, bar_h, y_bar, y_gap1, y_gap2)
+        else:
+            bar_w, bar_h, y_bar, y_gap1, y_gap2 = self._bar_geom
 
         self.progress.set_size(bar_w, bar_h, radius=lay["bar_radius_px"])
-
-        y_bar  = info_pad_top + int(float(lay["bar_top_rel_inner"]) * inner_h)
-        y_gap1 =              int(float(lay["gap_bar_title_rel_inner"]) * inner_h)
-        y_gap2 =              int(float(lay["gap_title_sub_rel_inner"]) * inner_h)
 
         # Barra dentro de la caja derecha: alineada de izquierda a derecha (respeta padding)
         self.progress.place(x=info_pad_left, y=y_bar)  # dentro de info_box
