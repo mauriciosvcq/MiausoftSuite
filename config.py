@@ -39,8 +39,9 @@ def _font_candidate_paths(family: str) -> list[Path]:
     ]
 
     if _is_windows():
-        win_dir = Path(os.getenv("WINDIR", r"C:\Windows"))
-        dirs.append(win_dir / "Fonts")
+        windir = os.getenv("WINDIR")
+        if windir:
+            dirs.append(Path(windir) / "Fonts")
 
     if family_norm == "comfortaa":
         names = [
@@ -475,6 +476,9 @@ APP_OVERRIDES: Dict[str, Any] = {
             "bar_top_rel_inner":       1/(PHI*9),
             "gap_bar_title_rel_inner": 1/(PHI*12),
             "gap_title_sub_rel_inner": 1/(PHI*18),
+
+            "title_max_lines": 3,
+            "subtitle_max_lines": 1,
         },
     },
 
@@ -513,6 +517,9 @@ APP_OVERRIDES: Dict[str, Any] = {
             "bar_top_rel_inner":       1/(PHI*9),
             "gap_bar_title_rel_inner": 1/(PHI*12),
             "gap_title_sub_rel_inner": 1/(PHI*18),
+
+            "title_max_lines": 3,
+            "subtitle_max_lines": 1,
         },
     },
 
@@ -1301,6 +1308,48 @@ def _wrap_ellipsis_px(text: str, font: tkfont.Font, max_width_px: int, max_lines
             out[-1] = last + ell
 
     return "\n".join(out)
+
+def _wrap_lines_px(text: str, font: tkfont.Font, max_width_px: int,
+                  break_chars: str = "/\\_-.:") -> list[str]:
+    """Wrap por píxel sin elipsis (devuelve todas las líneas)."""
+    s = str(text or "").replace("\r\n", "\n").replace("\r", "\n")
+    if not s:
+        return [""]
+    max_width_px = max(10, int(max_width_px or 0))
+
+    out: list[str] = []
+    cur = ""
+    last_break = -1
+
+    i = 0
+    n = len(s)
+    while i < n:
+        ch = s[i]
+        i += 1
+
+        if ch == "\n":
+            out.append(cur.rstrip())
+            cur = ""
+            last_break = -1
+            continue
+
+        cur += ch
+        if ch.isspace() or (ch in break_chars):
+            last_break = len(cur) - 1
+
+        if font.measure(cur) > max_width_px:
+            if last_break >= 0 and last_break < (len(cur) - 1):
+                out.append(cur[: last_break + 1].rstrip())
+                cur = cur[last_break + 1 :].lstrip()
+            else:
+                out.append(cur[:-1].rstrip())
+                cur = ch.lstrip()
+            last_break = -1
+
+    if cur:
+        out.append(cur.rstrip())
+
+    return out
 def _font(family: str, fallback: str, size_px: float, *, bold=False, italic=False, min_px: int = 8):
     size = max(int(min_px), int(size_px))
     fam = family or fallback or "Segoe UI"
@@ -1496,6 +1545,11 @@ class ProgressDialog(tk.Frame):
         self._raw_subtitle = ""
         self._font_title = None
         self._font_sub = None
+        self._title_cached_wrap = ""
+        self._title_cached_lines = 0
+        self._title_wrap_px = 0
+        self._title_last_max_lines = 0
+        self._title_needs_wrap = True
 
         # Estado
         self._wrap_px = 300
@@ -1575,6 +1629,11 @@ class ProgressDialog(tk.Frame):
     # ---- API ----
     def set_title(self, text: str):
         self._raw_title = str(text or "")
+        self._title_cached_wrap = ""
+        self._title_cached_lines = 0
+        self._title_wrap_px = 0
+        self._title_last_max_lines = 0
+        self._title_needs_wrap = True
         self._render_text()
         self._schedule_layout()
 
@@ -1596,7 +1655,15 @@ class ProgressDialog(tk.Frame):
             w = max(120, int(getattr(self, "_wrap_px", 300)))
             ft = self._font_title or tkfont.Font(font=self.lbl_main.cget("font"))
             fs = self._font_sub or tkfont.Font(font=self.lbl_sub.cget("font"))
-            self.lbl_main.config(text=_wrap_ellipsis_px(self._raw_title, ft, w, max_lines=max(1, int(getattr(self, '_max_title_lines', 2)))))
+            max_lines = max(1, int(getattr(self, '_max_title_lines', 2)))
+            if self._title_needs_wrap or self._title_wrap_px != w or self._title_last_max_lines != max_lines:
+                self._title_wrap_px = w
+                self._title_last_max_lines = max_lines
+                self._title_needs_wrap = False
+                full_lines = _wrap_lines_px(self._raw_title, ft, w)
+                self._title_cached_lines = max(1, len(full_lines)) if (self._raw_title or "").strip() else 0
+                self._title_cached_wrap = _wrap_ellipsis_px(self._raw_title, ft, w, max_lines=max_lines)
+            self.lbl_main.config(text=self._title_cached_wrap)
             _sub = self._display_subtitle()
             ms = max(0, int(getattr(self, '_max_sub_lines', 3)))
             if ms <= 0 or not (_sub or '').strip():
@@ -1774,11 +1841,6 @@ class ProgressDialog(tk.Frame):
         # Texto: layout fijo para evitar jitter y GARANTIZAR el subtítulo debajo del título.
         sub_present = bool((self._display_subtitle() or "").strip())
 
-        # 1 línea de título (suficiente para 'Procesando…') y 1 línea de subtítulo si existe.
-        self._max_title_lines = 1
-        self._max_sub_lines = 1 if sub_present else 0
-        self._render_text()
-
         def _linespace(font_obj, default_px: int) -> int:
             try:
                 ls = int(font_obj.metrics("linespace") or 0)
@@ -1803,38 +1865,38 @@ class ProgressDialog(tk.Frame):
         lh_t = _linespace(ft, 18) if ft is not None else 18
         lh_s = _linespace(fs, 14) if fs is not None else 14
 
-        title_h = int(self._max_title_lines * lh_t)
-        sub_h = int(self._max_sub_lines * lh_s)
+        max_title_lines_cfg = max(1, int(lay.get("title_max_lines", 3)))
+        max_sub_lines_cfg = max(0, int(lay.get("subtitle_max_lines", 1)))
+
+        available_h = max(1, int(inner_h - (y_title - info_pad_top)))
+        subtitle_block_h = int(y_gap2 + lh_s) if sub_present and max_sub_lines_cfg > 0 else 0
+        max_fit_title = max(1, int((available_h - subtitle_block_h) // max(1, lh_t)))
+        self._max_title_lines = max(1, min(max_title_lines_cfg, max_fit_title))
+        self._max_sub_lines = max_sub_lines_cfg if sub_present else 0
+
+        if self._title_last_max_lines != self._max_title_lines:
+            self._title_needs_wrap = True
+
+        self._render_text()
+
+        title_lines = max(0, min(self._max_title_lines, int(self._title_cached_lines or 0)))
+        sub_lines = 1 if (sub_present and self._max_sub_lines > 0) else 0
+
+        title_h = int(title_lines * lh_t)
+        sub_h = int(sub_lines * lh_s)
 
         # y del subtítulo: siempre la línea inmediata debajo del título (con gap configurable).
-        y_sub = y_title + title_h + (y_gap2 if sub_present else 0)
-
-        # Anti-recorte (sin reflow): si el bloque se sale, subirlo lo máximo posible.
-        try:
-            bottom_limit = int(info_pad_top + inner_h)
-            block_bottom = max(int(y_bar + int(getattr(self.progress, 'height', 0) or 0)),
-                               int(y_sub + sub_h) if sub_h > 0 else int(y_title + title_h))
-            if block_bottom > bottom_limit:
-                overshoot = int(block_bottom - bottom_limit)
-                avail_up = max(0, int(y_bar - info_pad_top))
-                shift = min(overshoot, avail_up)
-                if shift > 0:
-                    y_bar -= shift
-                    y_title -= shift
-                    y_sub -= shift
-                    try:
-                        self.progress.place_configure(y=y_bar)
-                    except Exception:
-                        try:
-                            self.progress.place(x=info_pad_left, y=y_bar)
-                        except Exception:
-                            pass
-        except Exception:
-            pass
-
+        gap_after_title = y_gap2 if (sub_present and title_lines > 0) else 0
+        y_sub = y_title + title_h + gap_after_title
 
         # Title
-        self.lbl_main.place(x=info_pad_left, y=y_title, width=inner_w, height=int(title_h))
+        if title_h <= 0:
+            try:
+                self.lbl_main.place_forget()
+            except Exception:
+                pass
+        else:
+            self.lbl_main.place(x=info_pad_left, y=y_title, width=inner_w, height=int(title_h))
 
         # Subtitle (justo debajo del título)
         if sub_h <= 0:
