@@ -1831,13 +1831,13 @@ class ProgressDialog(tk.Frame):
         self.lbl_sub.config(font=self._font_sub)
 
         # Barra: ancho φ-relativo al ancho total y clamp al panel derecho; alineada a la izquierda
-        layout_key = (W, H, inner_w, inner_h, info_pad_left, info_pad_top)
+        layout_key = (W, H, inner_w)
         if self._layout_key != layout_key or not self._bar_geom:
             bar_w_target = int(W * float(lay.get("bar_w_rel_w", 1/(PHI*1))))
             bar_w = max(10, min(inner_w, bar_w_target))
             bar_h = max(int(lay["bar_min_h_px"]), int(H * float(lay["bar_h_rel_h"])))
             bar_h = min(bar_h, inner_h)
-            y_bar  = info_pad_top + int(float(lay["bar_top_rel_inner"]) * inner_h)
+            y_bar  = int(float(lay["bar_top_rel_inner"]) * H)
             y_gap1 =              int(float(lay["gap_bar_title_rel_inner"]) * inner_h)
             y_gap2 =              int(float(lay["gap_title_sub_rel_inner"]) * inner_h)
             self._layout_key = layout_key
@@ -1850,7 +1850,7 @@ class ProgressDialog(tk.Frame):
         # Barra dentro de la caja derecha: alineada de izquierda a derecha (respeta padding)
         self.progress.place(x=info_pad_left, y=y_bar)  # dentro de info_box
 
-        y_title = info_pad_top + int(float(lay.get("title_top_rel_inner", (1/(PHI*4)))) * inner_h)
+        y_title = int(float(lay.get("title_top_rel_inner", (1/(PHI*4)))) * H)
         # Texto: layout fijo para evitar jitter y GARANTIZAR el subtítulo en posición fija.
         sub_present = bool((self._display_subtitle() or "").strip())
 
@@ -1879,12 +1879,9 @@ class ProgressDialog(tk.Frame):
         lh_s = _linespace(fs, 14) if fs is not None else 14
 
         max_title_lines_cfg = max(1, int(lay.get("title_max_lines", 3)))
-        max_sub_lines_cfg = max(0, int(lay.get("subtitle_max_lines", 1)))
+        max_sub_lines_cfg = max(1, int(lay.get("subtitle_max_lines", 1)))
 
-        available_h = max(1, int(inner_h - (y_title - info_pad_top)))
-        subtitle_block_h = int(y_gap2 + lh_s) if sub_present and max_sub_lines_cfg > 0 else 0
-        max_fit_title = max(1, int((available_h - subtitle_block_h) // max(1, lh_t)))
-        self._max_title_lines = max(1, min(max_title_lines_cfg, max_fit_title))
+        self._max_title_lines = max_title_lines_cfg
         self._max_sub_lines = max_sub_lines_cfg if sub_present else 0
 
         if self._title_last_max_lines != self._max_title_lines:
@@ -1893,12 +1890,12 @@ class ProgressDialog(tk.Frame):
         self._render_text()
 
         title_lines = max(0, min(self._max_title_lines, int(self._title_cached_lines or 0)))
-        sub_lines = 1 if (sub_present and self._max_sub_lines > 0) else 0
+        sub_lines = self._max_sub_lines if sub_present else 0
 
         title_h = int(title_lines * lh_t)
         sub_h = int(sub_lines * lh_s)
 
-        y_sub = info_pad_top + int(float(lay.get("subtitle_top_rel_inner", (1/(PHI*3)))) * inner_h)
+        y_sub = int(float(lay.get("subtitle_top_rel_inner", (1/(PHI*3)))) * H)
 
         # Title
         if title_h <= 0:
