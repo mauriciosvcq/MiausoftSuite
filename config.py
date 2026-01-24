@@ -39,8 +39,9 @@ def _font_candidate_paths(family: str) -> list[Path]:
     ]
 
     if _is_windows():
-        win_dir = Path(os.getenv("WINDIR", r"C:\Windows"))
-        dirs.append(win_dir / "Fonts")
+        windir = os.getenv("WINDIR")
+        if windir:
+            dirs.append(Path(windir) / "Fonts")
 
     if family_norm == "comfortaa":
         names = [
@@ -475,6 +476,9 @@ APP_OVERRIDES: Dict[str, Any] = {
             "bar_top_rel_inner":       1/(PHI*9),
             "gap_bar_title_rel_inner": 1/(PHI*12),
             "gap_title_sub_rel_inner": 1/(PHI*18),
+
+            "title_max_lines": 3,
+            "subtitle_max_lines": 1,
         },
     },
 
@@ -513,6 +517,9 @@ APP_OVERRIDES: Dict[str, Any] = {
             "bar_top_rel_inner":       1/(PHI*9),
             "gap_bar_title_rel_inner": 1/(PHI*12),
             "gap_title_sub_rel_inner": 1/(PHI*18),
+
+            "title_max_lines": 3,
+            "subtitle_max_lines": 1,
         },
     },
 
@@ -1774,11 +1781,6 @@ class ProgressDialog(tk.Frame):
         # Texto: layout fijo para evitar jitter y GARANTIZAR el subtítulo debajo del título.
         sub_present = bool((self._display_subtitle() or "").strip())
 
-        # 1 línea de título (suficiente para 'Procesando…') y 1 línea de subtítulo si existe.
-        self._max_title_lines = 1
-        self._max_sub_lines = 1 if sub_present else 0
-        self._render_text()
-
         def _linespace(font_obj, default_px: int) -> int:
             try:
                 ls = int(font_obj.metrics("linespace") or 0)
@@ -1803,11 +1805,32 @@ class ProgressDialog(tk.Frame):
         lh_t = _linespace(ft, 18) if ft is not None else 18
         lh_s = _linespace(fs, 14) if fs is not None else 14
 
-        title_h = int(self._max_title_lines * lh_t)
-        sub_h = int(self._max_sub_lines * lh_s)
+        max_title_lines_cfg = max(1, int(lay.get("title_max_lines", 3)))
+        max_sub_lines_cfg = max(0, int(lay.get("subtitle_max_lines", 1)))
+
+        available_h = max(1, int(inner_h - (y_title - info_pad_top)))
+        subtitle_block_h = int(y_gap2 + lh_s) if sub_present and max_sub_lines_cfg > 0 else 0
+        max_fit_title = max(1, int((available_h - subtitle_block_h) // max(1, lh_t)))
+        self._max_title_lines = max(1, min(max_title_lines_cfg, max_fit_title))
+        self._max_sub_lines = max_sub_lines_cfg if sub_present else 0
+
+        self._render_text()
+
+        def _count_lines(text_value: str) -> int:
+            text_value = str(text_value or "")
+            if not text_value.strip():
+                return 0
+            return text_value.count("\n") + 1
+
+        title_lines = max(0, min(self._max_title_lines, _count_lines(self.lbl_main.cget("text"))))
+        sub_lines = max(0, min(self._max_sub_lines, _count_lines(self.lbl_sub.cget("text"))))
+
+        title_h = int(title_lines * lh_t)
+        sub_h = int(sub_lines * lh_s)
 
         # y del subtítulo: siempre la línea inmediata debajo del título (con gap configurable).
-        y_sub = y_title + title_h + (y_gap2 if sub_present else 0)
+        gap_after_title = y_gap2 if (sub_present and title_lines > 0) else 0
+        y_sub = y_title + title_h + gap_after_title
 
         # Anti-recorte (sin reflow): si el bloque se sale, subirlo lo máximo posible.
         try:
@@ -1834,7 +1857,13 @@ class ProgressDialog(tk.Frame):
 
 
         # Title
-        self.lbl_main.place(x=info_pad_left, y=y_title, width=inner_w, height=int(title_h))
+        if title_h <= 0:
+            try:
+                self.lbl_main.place_forget()
+            except Exception:
+                pass
+        else:
+            self.lbl_main.place(x=info_pad_left, y=y_title, width=inner_w, height=int(title_h))
 
         # Subtitle (justo debajo del título)
         if sub_h <= 0:
