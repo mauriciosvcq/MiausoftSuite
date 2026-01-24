@@ -477,6 +477,9 @@ APP_OVERRIDES: Dict[str, Any] = {
             "gap_bar_title_rel_inner": 1/(PHI*12),
             "gap_title_sub_rel_inner": 1/(PHI*18),
 
+            "title_top_rel_inner": 1/(PHI*4),
+            "subtitle_top_rel_inner": 1/(PHI*3),
+
             "title_max_lines": 3,
             "subtitle_max_lines": 1,
         },
@@ -517,6 +520,9 @@ APP_OVERRIDES: Dict[str, Any] = {
             "bar_top_rel_inner":       1/(PHI*9),
             "gap_bar_title_rel_inner": 1/(PHI*12),
             "gap_title_sub_rel_inner": 1/(PHI*18),
+
+            "title_top_rel_inner": 1/(PHI*4),
+            "subtitle_top_rel_inner": 1/(PHI*3),
 
             "title_max_lines": 3,
             "subtitle_max_lines": 1,
@@ -1844,8 +1850,8 @@ class ProgressDialog(tk.Frame):
         # Barra dentro de la caja derecha: alineada de izquierda a derecha (respeta padding)
         self.progress.place(x=info_pad_left, y=y_bar)  # dentro de info_box
 
-        y_title = y_bar + self.progress.height + y_gap1
-        # Texto: layout fijo para evitar jitter y GARANTIZAR el subtítulo debajo del título.
+        y_title = info_pad_top + int(float(lay.get("title_top_rel_inner", (1/(PHI*4)))) * inner_h)
+        # Texto: layout fijo para evitar jitter y GARANTIZAR el subtítulo en posición fija.
         sub_present = bool((self._display_subtitle() or "").strip())
 
         def _linespace(font_obj, default_px: int) -> int:
@@ -1892,9 +1898,7 @@ class ProgressDialog(tk.Frame):
         title_h = int(title_lines * lh_t)
         sub_h = int(sub_lines * lh_s)
 
-        # y del subtítulo: siempre la línea inmediata debajo del título (con gap configurable).
-        gap_after_title = y_gap2 if (sub_present and title_lines > 0) else 0
-        y_sub = y_title + title_h + gap_after_title
+        y_sub = info_pad_top + int(float(lay.get("subtitle_top_rel_inner", (1/(PHI*3)))) * inner_h)
 
         # Title
         if title_h <= 0:
