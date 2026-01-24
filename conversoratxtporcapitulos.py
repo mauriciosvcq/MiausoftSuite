@@ -762,6 +762,101 @@ def _which(bin_names: List[str]) -> Optional[str]:
             return p
     return None
 
+
+def _find_pdftotext() -> Optional[str]:
+    """Encuentra pdftotext (Poppler/Xpdf). Best-effort, sin escaneo agresivo."""
+    p = _which(["pdftotext", "pdftotext.exe"])
+    if p:
+        return p
+    if os.name != "nt":
+        return None
+    try:
+        candidates: List[Path] = []
+        for env in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA", "USERPROFILE"):
+            base = os.environ.get(env)
+            if base:
+                candidates.append(Path(base))
+        rels = [
+            r"scoop\apps\poppler\current\Library\bin\pdftotext.exe",
+            r"chocolatey\bin\pdftotext.exe",
+            r"poppler\Library\bin\pdftotext.exe",
+            r"Poppler\Library\bin\pdftotext.exe",
+        ]
+        for base in candidates:
+            for rel in rels:
+                c = base / rel
+                if c.exists():
+                    return str(c)
+    except Exception:
+        pass
+    return None
+
+
+def _iter_pdftotext_pages(
+    pdftotext_bin: str,
+    pdf_path: Path,
+    start1: int,
+    end1: int,
+    *,
+    layout: bool = False,
+    raw: bool = False,
+    table: bool = False,
+    extra_args: Optional[List[str]] = None,
+) -> 'Iterable[str]':
+    """Itera páginas en streaming (separadas por \f) desde pdftotext hacia Python."""
+    cmd: List[str] = [
+        str(pdftotext_bin),
+        "-q",
+        "-f", str(int(start1)),
+        "-l", str(int(end1)),
+        "-enc", "UTF-8",
+        "-eol", "unix",
+    ]
+    if layout:
+        cmd.append("-layout")
+    if raw:
+        cmd.append("-raw")
+    if table:
+        cmd.append("-table")
+    if extra_args:
+        cmd.extend([str(a) for a in extra_args if str(a).strip()])
+    cmd.extend([str(pdf_path), "-"])
+
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    try:
+        assert proc.stdout is not None
+        buf = bytearray()
+        CHUNK = 1 << 16
+        while True:
+            chunk = proc.stdout.read(CHUNK)
+            if not chunk:
+                break
+            buf.extend(chunk)
+            while True:
+                i = buf.find(b"\x0c")
+                if i < 0:
+                    break
+                seg = bytes(buf[:i])
+                del buf[:i+1]
+                yield seg.decode("utf-8", errors="ignore")
+        if buf:
+            yield bytes(buf).decode("utf-8", errors="ignore")
+        rc = proc.wait()
+        if rc != 0:
+            raise RuntimeError(f"pdftotext falló (exit={rc})")
+    finally:
+        try:
+            if proc.stdout is not None:
+                proc.stdout.close()
+        except Exception:
+            pass
+        try:
+            if proc.poll() is None:
+                proc.kill()
+        except Exception:
+            pass
+
+
 def _convert_with_libreoffice(src: Path, target_ext: str) -> Optional[Path]:
     soffice = _which(["soffice", "lowriter", "soffice.bin"])
     if not soffice:
@@ -2280,30 +2375,85 @@ class MiausoftApp(tk.Tk):
                         with tempfile.NamedTemporaryFile("wb", suffix=".miaucache", delete=False) as tf, \
                              open(txt_file, "w", encoding="utf-8", errors="ignore") as out:
                             cache_path = Path(tf.name)
-                            for rel0, gp0 in enumerate(range(start0, end0 + 1)):
-                                rel = rel0 + 1
-                                self.queue.put(("extract_page", rel, total_sel))
-                                try:
-                                    if use_fitz and doc is not None:
-                                        base_txt = doc.load_page(gp0).get_text('text') or ''
-                                    else:
-                                        base_txt = self._safe_extract(reader.pages[gp0], rel, total_sel) if reader is not None else ''
-                                except Exception:
-                                    base_txt = ''
-                                base_txt = _norm_txt(base_txt)
-                                _cache_write(tf, base_txt)
 
-                                # escribir inmediatamente
-                                out.write(base_txt or '')
-                                if rel < total_sel:
-                                    out.write('\n')
-                                out.flush()
+                            perf_cfg = (CONFIG.get("performance", {}) or {})
+                            pdf_backend = str(perf_cfg.get("pdf_text_backend", perf_cfg.get("pdf_backend", "auto")) or "auto").lower()
+                            txt_flush_pages = int(perf_cfg.get("txt_flush_pages", 25) or 25)
+                            pdftotext_layout = bool(perf_cfg.get("pdftotext_layout", False))
+                            pdftotext_raw = bool(perf_cfg.get("pdftotext_raw", False))
+                            pdftotext_table = bool(perf_cfg.get("pdftotext_table", False))
+                            pdftotext_extra_args = perf_cfg.get("pdftotext_extra_args", []) or []
+                            try:
+                                pdftotext_extra_args = [str(a) for a in pdftotext_extra_args if str(a).strip()]
+                            except Exception:
+                                pdftotext_extra_args = []
 
-                                st = (base_txt or '').strip()
-                                if len(st) >= ocr_min_chars:
-                                    textful_count += 1
-                                if len(st) < ocr_min_chars:
-                                    short_gp0.append(int(gp0))
+                            pdftotext_bin = None
+                            use_pdftotext = False
+                            if pdf_backend in ("auto", "pdftotext"):
+                                pdftotext_bin = _find_pdftotext()
+                                use_pdftotext = bool(pdftotext_bin)
+                            if pdf_backend in ("pymupdf", "fitz", "pypdf"):
+                                use_pdftotext = False
+
+                            flush_every = max(0, int(txt_flush_pages))
+
+                            if use_pdftotext and pdftotext_bin:
+                                page_iter = _iter_pdftotext_pages(
+                                    pdftotext_bin,
+                                    path,
+                                    int(start0) + 1,
+                                    int(end0) + 1,
+                                    layout=pdftotext_layout,
+                                    raw=pdftotext_raw,
+                                    table=pdftotext_table,
+                                    extra_args=pdftotext_extra_args,
+                                )
+                                for rel0, gp0 in enumerate(range(start0, end0 + 1)):
+                                    rel = rel0 + 1
+                                    self.queue.put(("extract_page", rel, total_sel))
+                                    try:
+                                        txt = next(page_iter)
+                                    except StopIteration:
+                                        txt = ""
+                                    except Exception:
+                                        txt = ""
+                                    txt = _norm_txt(txt)
+                                    _cache_write(tf, txt)
+
+                                    out.write(txt or "")
+                                    if rel < total_sel:
+                                        out.write("\n")
+                                    if flush_every and (rel % flush_every == 0):
+                                        out.flush()
+
+                                    st = (txt or "").strip()
+                                    if len(st) < ocr_min_chars:
+                                        short_gp0.append(int(gp0))
+                            else:
+                                for rel0, gp0 in enumerate(range(start0, end0 + 1)):
+                                    rel = rel0 + 1
+                                    self.queue.put(("extract_page", rel, total_sel))
+                                    try:
+                                        if use_fitz and doc is not None:
+                                            page = doc.load_page(gp0)
+                                            txt = page.get_text("text") or ""
+                                        else:
+                                            txt = self._safe_extract_pdf_page(reader.pages[gp0]) if reader is not None else ""
+                                    except Exception:
+                                        txt = ""
+                                    txt = _norm_txt(txt)
+                                    _cache_write(tf, txt)
+
+                                    out.write(txt or "")
+                                    if rel < total_sel:
+                                        out.write("\n")
+                                    if flush_every and (rel % flush_every == 0):
+                                        out.flush()
+
+                                    st = (txt or "").strip()
+                                    if len(st) < ocr_min_chars:
+                                        short_gp0.append(int(gp0))
                     finally:
                         try:
                             if doc is not None:

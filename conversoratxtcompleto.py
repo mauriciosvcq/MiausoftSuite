@@ -90,6 +90,108 @@ def _find_soffice() -> str | None:
     return None
 
 
+def _find_pdftotext() -> str | None:
+    """Encuentra pdftotext (Poppler/Xpdf). Best-effort, sin escaneo agresivo."""
+    p = _which(["pdftotext", "pdftotext.exe"])
+    if p:
+        return p
+    if os.name != "nt":
+        return None
+
+    # Rutas típicas en Windows (scoop/chocolatey/poppler)
+    try:
+        candidates: list[Path] = []
+        for env in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA", "USERPROFILE"):
+            base = os.environ.get(env)
+            if base:
+                candidates.append(Path(base))
+
+        rels = [
+            r"scoop\apps\poppler\current\Library\bin\pdftotext.exe",
+            r"chocolatey\bin\pdftotext.exe",
+            r"poppler\Library\bin\pdftotext.exe",
+            r"Poppler\Library\bin\pdftotext.exe",
+        ]
+        for base in candidates:
+            for rel in rels:
+                c = base / rel
+                if c.exists():
+                    return str(c)
+    except Exception:
+        pass
+    return None
+
+
+def _iter_pdftotext_pages(
+    pdftotext_bin: str,
+    pdf_path: Path,
+    start1: int,
+    end1: int,
+    *,
+    layout: bool = False,
+    raw: bool = False,
+    table: bool = False,
+    extra_args: list[str] | None = None,
+):
+    """Itera páginas en streaming (separadas por \f) desde pdftotext hacia Python.
+
+    - No acumula el documento en RAM.
+    - Lee stdout por chunks y produce un string por página.
+    """
+    cmd: list[str] = [
+        str(pdftotext_bin),
+        "-q",
+        "-f", str(int(start1)),
+        "-l", str(int(end1)),
+        "-enc", "UTF-8",
+        "-eol", "unix",
+    ]
+    if layout:
+        cmd.append("-layout")
+    if raw:
+        cmd.append("-raw")
+    if table:
+        cmd.append("-table")
+    if extra_args:
+        cmd.extend([str(a) for a in extra_args if str(a).strip()])
+
+    # stdout: texto; stderr: descartado (ya pasamos -q)
+    cmd.extend([str(pdf_path), "-"])
+
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    try:
+        assert proc.stdout is not None
+        buf = bytearray()
+        CHUNK = 1 << 16  # 64 KiB
+        while True:
+            chunk = proc.stdout.read(CHUNK)
+            if not chunk:
+                break
+            buf.extend(chunk)
+            while True:
+                i = buf.find(b"\x0c")
+                if i < 0:
+                    break
+                seg = bytes(buf[:i])
+                del buf[:i+1]
+                yield seg.decode("utf-8", errors="ignore")
+        if buf:
+            yield bytes(buf).decode("utf-8", errors="ignore")
+        rc = proc.wait()
+        if rc != 0:
+            raise RuntimeError(f"pdftotext falló (exit={rc})")
+    finally:
+        try:
+            if proc.stdout is not None:
+                proc.stdout.close()
+        except Exception:
+            pass
+        try:
+            if proc.poll() is None:
+                proc.kill()
+        except Exception:
+            pass
+
 def _pages_to_ranges(pages_1based: List[int]) -> str:
     """Convierte [1,2,3,7,8] -> '1-3,7-8' (formato OCRmyPDF --pages)."""
     try:
@@ -805,6 +907,7 @@ class HeadlessConverterApp:
 
     # ---------------- PDF ----------------
     # ---------------- PDF ----------------
+
     def _convert_pdf(self, path: Path):
         """PDF -> TXT con RAM mínima y OCR inteligente.
 
@@ -814,6 +917,10 @@ class HeadlessConverterApp:
           - Si aplica OCR: solo en páginas con texto < min_chars, usando OCRmyPDF con skip_text.
           - OCR se parsea en streaming desde el sidecar y se guarda en cache en disco (sin dict gigante).
           - El progreso lógico siempre avanza por páginas (OCR no suma unidades).
+
+        Optimización clave:
+          - Soporta backend Poppler/Xpdf (pdftotext) en streaming por \f para acelerar extracción
+            sin elevar RAM; fallback a PyMuPDF (fitz) y luego pypdf.
         """
         import os
         import io
@@ -822,6 +929,19 @@ class HeadlessConverterApp:
         import tempfile
         import contextlib
         import re
+
+        # ---- Performance / IO
+        perf_cfg = (CONFIG.get("performance", {}) or {})
+        pdf_backend = str(perf_cfg.get("pdf_text_backend", perf_cfg.get("pdf_backend", "auto")) or "auto").lower()
+        txt_flush_pages = int(perf_cfg.get("txt_flush_pages", 25) or 25)
+        pdftotext_layout = bool(perf_cfg.get("pdftotext_layout", False))
+        pdftotext_raw = bool(perf_cfg.get("pdftotext_raw", False))
+        pdftotext_table = bool(perf_cfg.get("pdftotext_table", False))
+        pdftotext_extra_args = perf_cfg.get("pdftotext_extra_args", []) or []
+        try:
+            pdftotext_extra_args = [str(a) for a in pdftotext_extra_args if str(a).strip()]
+        except Exception:
+            pdftotext_extra_args = []
 
         # ---- OCR config
         ocr_cfg = (CONFIG.get("ocr", {}) or {})
@@ -896,16 +1016,20 @@ class HeadlessConverterApp:
                         continue
                     yield p0, fh.read(ln).decode("utf-8", errors="ignore")
 
+        # whitelist precompilada (evita recrear set por página)
+        _allowed_chars = None
+        if ocr_sanitize and ocr_whitelist:
+            _allowed_chars = set(ocr_whitelist)
+            _allowed_chars.update({" ", "\n", "\r", "\t", "\f"})
+
         def _filter_to_whitelist(s: str) -> str:
             if not ocr_sanitize:
                 return s or ""
             if not s:
                 return ""
-            if not ocr_whitelist:
+            if _allowed_chars is None:
                 return s
-            allowed = set(ocr_whitelist)
-            allowed.update({" ", "\n", "\r", "\t", "\f"})
-            return "".join(ch for ch in s if ch in allowed)
+            return "".join(ch for ch in s if ch in _allowed_chars)
 
         def _build_pages_arg(p0_list):
             if not p0_list:
@@ -931,7 +1055,6 @@ class HeadlessConverterApp:
 
         # ---- Streaming de sidecar por \f
         def _iter_sidecar_segments(sidecar_path: Path):
-            import os
             CHUNK = 65536
             buf = bytearray()
             with open(sidecar_path, "rb") as fh:
@@ -950,21 +1073,66 @@ class HeadlessConverterApp:
             if buf:
                 yield bytes(buf).decode("utf-8", errors="ignore")
 
-        # ---- Extract base (preferir fitz)
-        use_fitz = bool(globals().get('_HAS_FITZ', False) and globals().get('fitz', None) is not None)
+        # ---- Selección backend
+        use_fitz_available = bool(globals().get('_HAS_FITZ', False) and globals().get('fitz', None) is not None)
+        pdftotext_bin = None
+        use_pdftotext = False
+
+        if pdf_backend in ("auto", "pdftotext"):
+            pdftotext_bin = _find_pdftotext()
+            use_pdftotext = bool(pdftotext_bin)
+
+        if pdf_backend in ("pymupdf", "fitz"):
+            use_pdftotext = False
+        if pdf_backend in ("pypdf",):
+            use_pdftotext = False
+
+        use_fitz = False
+        if not use_pdftotext:
+            if pdf_backend in ("auto", "pymupdf", "fitz") and use_fitz_available:
+                use_fitz = True
+            else:
+                use_fitz = False
+
+        # ---- Abrir/contar páginas
         doc = None
         reader = None
         pages = 0
-        try:
-            if use_fitz:
-                doc = fitz.open(str(path))
-                pages = int(getattr(doc, 'page_count', 0) or 0)
-            else:
-                reader = PdfReader(str(path))
+
+        def _page_count_fast() -> int:
+            # intenta fitz primero (rápido)
+            if use_fitz_available and globals().get('fitz', None) is not None:
                 try:
-                    pages = int(reader.get_num_pages())
+                    d = fitz.open(str(path))
+                    pc = int(getattr(d, "page_count", 0) or 0)
+                    d.close()
+                    return pc
                 except Exception:
-                    pages = len(reader.pages)
+                    pass
+            # fallback pypdf
+            try:
+                with open(path, "rb") as fh:
+                    r = PdfReader(fh)
+                    try:
+                        return int(r.get_num_pages())
+                    except Exception:
+                        return int(len(r.pages))
+            except Exception:
+                return 0
+
+        try:
+            if use_pdftotext:
+                pages = _page_count_fast()
+            else:
+                if use_fitz:
+                    doc = fitz.open(str(path))
+                    pages = int(getattr(doc, 'page_count', 0) or 0)
+                else:
+                    reader = PdfReader(str(path))
+                    try:
+                        pages = int(reader.get_num_pages())
+                    except Exception:
+                        pages = len(reader.pages)
         except Exception as e:
             self._emit('error', f'Falló lectura PDF: {e}')
             try:
@@ -983,7 +1151,7 @@ class HeadlessConverterApp:
             self._emit('error', 'PDF vacío.')
             return
 
-        # ---- Extracción + escritura inmediata
+        # ---- Extracción + escritura inmediata (sin RAM)
         short_pages = []  # p0 con texto < min_chars
         textful_count = 0
         cache_path = None
@@ -991,30 +1159,76 @@ class HeadlessConverterApp:
             with tempfile.NamedTemporaryFile('wb', suffix='.miaucache', delete=False) as tf, \
                  open(out_file, 'w', encoding='utf-8', errors='ignore') as out:
                 cache_path = Path(tf.name)
-                for p0 in range(pages):
-                    try:
-                        if use_fitz and doc is not None:
-                            txt = doc.load_page(p0).get_text('text') or ''
-                        else:
-                            txt = self._safe_extract_pdf_page(reader.pages[p0]) if reader is not None else ''
-                    except Exception:
-                        txt = ''
-                    txt = _norm_txt(txt)
-                    _cache_write(tf, txt)
 
-                    # escribir inmediatamente
-                    out.write(txt or '')
-                    if p0 + 1 < pages:
-                        out.write('\n')
+                flush_every = max(0, int(txt_flush_pages))
+                flush_every = 0 if flush_every < 0 else flush_every
+
+                if use_pdftotext and pdftotext_bin:
+                    page_iter = _iter_pdftotext_pages(
+                        pdftotext_bin,
+                        path,
+                        1,
+                        pages,
+                        layout=pdftotext_layout,
+                        raw=pdftotext_raw,
+                        table=pdftotext_table,
+                        extra_args=pdftotext_extra_args,
+                    )
+                    for p0 in range(pages):
+                        try:
+                            txt = next(page_iter)
+                        except StopIteration:
+                            txt = ''
+                        except Exception:
+                            txt = ''
+                        txt = _norm_txt(txt)
+                        _cache_write(tf, txt)
+
+                        out.write(txt or '')
+                        if p0 + 1 < pages:
+                            out.write('\n')
+                        if flush_every and ((p0 + 1) % flush_every == 0):
+                            out.flush()
+
+                        st = (txt or '').strip()
+                        if len(st) >= ocr_min_chars:
+                            textful_count += 1
+                        if len(st) < ocr_min_chars:
+                            short_pages.append(p0)
+
+                        self._emit('extract_page', p0 + 1, pages)
+                else:
+                    for p0 in range(pages):
+                        try:
+                            if use_fitz and doc is not None:
+                                page = doc.load_page(p0)
+                                txt = page.get_text('text') or ''
+                            else:
+                                txt = self._safe_extract_pdf_page(reader.pages[p0]) if reader is not None else ''
+                        except Exception:
+                            txt = ''
+                        txt = _norm_txt(txt)
+                        _cache_write(tf, txt)
+
+                        out.write(txt or '')
+                        if p0 + 1 < pages:
+                            out.write('\n')
+                        if flush_every and ((p0 + 1) % flush_every == 0):
+                            out.flush()
+
+                        st = (txt or '').strip()
+                        if len(st) >= ocr_min_chars:
+                            textful_count += 1
+                        if len(st) < ocr_min_chars:
+                            short_pages.append(p0)
+
+                        self._emit('extract_page', p0 + 1, pages)
+
+                # flush final
+                try:
                     out.flush()
-
-                    st = (txt or '').strip()
-                    if len(st) >= ocr_min_chars:
-                        textful_count += 1
-                    if len(st) < ocr_min_chars:
-                        short_pages.append(p0)
-
-                    self._emit('extract_page', p0 + 1, pages)
+                except Exception:
+                    pass
         finally:
             try:
                 if doc is not None:
@@ -1049,69 +1263,63 @@ class HeadlessConverterApp:
                     cache_path.unlink(missing_ok=True)
             except Exception:
                 pass
-            try:
-                del reader
-            except Exception:
-                pass
-            gc.collect()
             self._emit('saved', out_file.name)
             return
 
-        # ---- OCR (chunked) => records en disco
-        self._emit('ocr_start', len(short_pages))
+        # ---- OCR por chunks (para no disparar RAM)
         ocr_cache_path = None
         try:
-            with tempfile.NamedTemporaryFile('wb', suffix='.miaucacheocr', delete=False) as ocf:
+            with tempfile.NamedTemporaryFile('wb', suffix='.miaucache_ocr', delete=False) as ocf:
                 ocr_cache_path = Path(ocf.name)
-                chunk_size = int((CONFIG.get('performance', {}) or {}).get('ocr_chunk_size', 50) or 50)
-                chunk_size = max(5, min(chunk_size, 200))
 
-                done = 0
-                pages_sorted = sorted(set(short_pages))
-                for i0 in range(0, len(pages_sorted), chunk_size):
-                    chunk = pages_sorted[i0:i0+chunk_size]
-                    pages_arg = _build_pages_arg(chunk)
-                    if not pages_arg:
-                        done = min(len(pages_sorted), i0 + len(chunk))
-                        self._emit('ocr_page', done, len(pages_sorted))
-                        continue
+            pages_sorted = sorted(set(short_pages))
+            chunk_size = int(perf_cfg.get("ocr_chunk_size", 50) or 50)
+            chunk_size = max(1, min(500, chunk_size))
 
-                    sidecar = None
-                    out_pdf = None
-                    try:
-                        with tempfile.NamedTemporaryFile('wb', suffix='.pdf', delete=False) as tfp:
-                            out_pdf = Path(tfp.name)
-                        with tempfile.NamedTemporaryFile('wb', suffix='.txt', delete=False) as tfs:
-                            sidecar = Path(tfs.name)
+            for i0 in range(0, len(pages_sorted), chunk_size):
+                chunk = pages_sorted[i0:i0+chunk_size]
+                pages_arg = _build_pages_arg(chunk)
+                if not pages_arg:
+                    continue
 
-                        tcfg = {}
-                        if ocr_whitelist:
-                            tcfg['tessedit_char_whitelist'] = ocr_whitelist
+                sidecar = None
+                out_pdf = None
+                try:
+                    with tempfile.NamedTemporaryFile("wb", suffix=".pdf", delete=False) as tfp:
+                        out_pdf = Path(tfp.name)
+                    with tempfile.NamedTemporaryFile("wb", suffix=".txt", delete=False) as tfs:
+                        sidecar = Path(tfs.name)
 
-                        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                            kwargs = dict(
-                                pages=pages_arg,
-                                skip_text=ocr_skip_text,
-                                force_ocr=False,
-                                jobs=int(_pick_ocr_jobs()),
-                                tesseract_timeout=float(ocr_timeout),
-                                oversample=int(ocr_dpi),
-                                language=ocr_lang,
-                                output_type='none',
-                                sidecar=str(sidecar),
-                                tesseract_config=tcfg if tcfg else None,
-                            )
+                    tcfg = {}
+                    if ocr_whitelist:
+                        tcfg["tessedit_char_whitelist"] = ocr_whitelist
+
+                    # OCRmyPDF ya limita internamente OMP_THREAD_LIMIT; jobs aquí controla paralelismo propio.
+                    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                        kwargs = dict(
+                            pages=pages_arg,
+                            skip_text=ocr_skip_text,
+                            force_ocr=False,
+                            jobs=int(_pick_ocr_jobs()),
+                            tesseract_timeout=float(ocr_timeout),
+                            oversample=int(ocr_dpi),
+                            language=ocr_lang,
+                            output_type='none',
+                            sidecar=str(sidecar),
+                            tesseract_config=tcfg if tcfg else None,
+                        )
+                        try:
+                            ocrmypdf_mod.ocr(str(path), str(out_pdf), **kwargs)
+                        except TypeError:
+                            kwargs.pop('output_type', None)
                             try:
                                 ocrmypdf_mod.ocr(str(path), str(out_pdf), **kwargs)
                             except TypeError:
-                                kwargs.pop('output_type', None)
-                                try:
-                                    ocrmypdf_mod.ocr(str(path), str(out_pdf), **kwargs)
-                                except TypeError:
-                                    kwargs.pop('tesseract_config', None)
-                                    ocrmypdf_mod.ocr(str(path), str(out_pdf), **kwargs)
+                                kwargs.pop('tesseract_config', None)
+                                ocrmypdf_mod.ocr(str(path), str(out_pdf), **kwargs)
 
-                        # Parsear sidecar en streaming y escribir records
+                    # Parsear sidecar en streaming y escribir records
+                    with open(ocr_cache_path, "ab") as ocf2:
                         seg_iter = _iter_sidecar_segments(sidecar)
                         for j, p0 in enumerate(chunk):
                             try:
@@ -1119,22 +1327,26 @@ class HeadlessConverterApp:
                             except StopIteration:
                                 seg = ''
                             seg = _filter_to_whitelist(_norm_txt(seg)).strip('\n')
-                            _ocrrec_write(ocf, int(p0), seg)
+                            _ocrrec_write(ocf2, int(p0), seg)
 
+                except Exception:
+                    # si falla OCR chunk, escribir vacío para esas páginas
+                    try:
+                        with open(ocr_cache_path, "ab") as ocf2:
+                            for p0 in chunk:
+                                _ocrrec_write(ocf2, int(p0), '')
                     except Exception:
-                        # si falla OCR chunk, escribir vacío para esas páginas
-                        for p0 in chunk:
-                            _ocrrec_write(ocf, int(p0), '')
-                    finally:
-                        for tmp in (sidecar, out_pdf):
-                            if tmp is not None:
-                                try:
-                                    tmp.unlink()
-                                except Exception:
-                                    pass
+                        pass
+                finally:
+                    for tmp in (sidecar, out_pdf):
+                        if tmp is not None:
+                            try:
+                                tmp.unlink()
+                            except Exception:
+                                pass
 
-                    done = min(len(pages_sorted), i0 + len(chunk))
-                    self._emit('ocr_page', done, len(pages_sorted))
+                done = min(len(pages_sorted), i0 + len(chunk))
+                self._emit('ocr_page', done, len(pages_sorted))
 
             # ---- Re-ensamble final (sin RAM)
             tmp_out = None
@@ -1185,6 +1397,7 @@ class HeadlessConverterApp:
             gc.collect()
 
         self._emit('saved', out_file.name)
+
 
 
 

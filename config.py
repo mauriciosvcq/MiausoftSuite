@@ -417,6 +417,16 @@ BASE_CONFIG: Dict[str, Any] = {
         "prefer_pymupdf_text": True,
         "use_pypdf_outlines_fallback": False,
         "max_workers_for_detection": 2,
+    
+        # PDF -> TXT: backend & IO (pensado para decenas de GB con RAM mínima)
+        # Orden auto: PyMuPDF (si está disponible) -> Poppler pdftotext (si existe) -> pypdf.
+        "pdf_text_backend": "auto",   # "auto" | "pymupdf" | "pdftotext" | "pypdf"
+        "txt_flush_pages": 25,        # 0 => nunca (solo al cerrar); >0 => flush cada N páginas
+        "pdftotext_layout": False,
+        "pdftotext_raw": False,
+        "pdftotext_table": False,
+        "pdftotext_extra_args": [],   # lista de strings adicionales para pdftotext
+        "ocr_chunk_size": 50,
     },
 }
 
@@ -458,7 +468,7 @@ APP_OVERRIDES: Dict[str, Any] = {
         },
         "fonts": {
             "title": {"rel_px": 1/(PHI*25), "px": phi_px_h(32, min_px=12), "bold": True,  "italic": False},
-            "sub":   {"rel_px": 1/(PHI*30), "px": phi_px_h(46, min_px=9),  "bold": False, "italic": True},
+            "sub":   {"rel_px": 1/(PHI*4),  "px": phi_px_h(46, min_px=9),  "bold": True,  "italic": False},
         },
         "layout": {
             "icon_box_width_rel_w": 1/(PHI*2),
@@ -475,10 +485,10 @@ APP_OVERRIDES: Dict[str, Any] = {
 
             "bar_top_rel_inner":       1/(PHI*9),
             "gap_bar_title_rel_inner": 1/(PHI*12),
-            "gap_title_sub_rel_inner": 1/(PHI*18),
+            "gap_title_sub_rel_inner": 1/(PHI*7),
 
-            "title_top_rel_inner": 1/(PHI*4),
-            "subtitle_top_rel_inner": 1/(PHI*3),
+            "title_top_rel_inner": 1/(PHI*3),
+            "subtitle_top_rel_inner": 1/(PHI*1),
 
             "title_max_lines": 3,
             "subtitle_max_lines": 1,
@@ -503,7 +513,7 @@ APP_OVERRIDES: Dict[str, Any] = {
         },
         "fonts": {
             "title": {"rel_px": 1/(PHI*20), "px": phi_px_h(32, min_px=12), "bold": True,  "italic": False},
-            "sub":   {"rel_px": 1/(PHI*30), "px": phi_px_h(46, min_px=9),  "bold": False, "italic": True},
+            "sub":   {"rel_px": 1/(PHI*15), "px": phi_px_h(42, min_px=12),  "bold": False, "italic": True},
         },
         "layout": {
             "icon_box_width_rel_w": 1/(PHI*2),
@@ -521,8 +531,8 @@ APP_OVERRIDES: Dict[str, Any] = {
             "gap_bar_title_rel_inner": 1/(PHI*12),
             "gap_title_sub_rel_inner": 1/(PHI*18),
 
-            "title_top_rel_inner": 1/(PHI*4),
-            "subtitle_top_rel_inner": 1/(PHI*3),
+            "title_top_rel_inner": 0.32,
+            "subtitle_top_rel_inner": 0.70,
 
             "title_max_lines": 3,
             "subtitle_max_lines": 1,
@@ -1588,13 +1598,13 @@ class ProgressDialog(tk.Frame):
     # ---- API ----
     def set_title(self, text: str):
         self._raw_title = str(text or "")
+        # Solo re-render de texto; NO recalcular geometría para evitar parpadeo.
         self._render_text()
-        self._schedule_layout()
 
     def set_subtitle(self, text: str):
         self._raw_subtitle = str(text or "")
+        # Solo re-render de texto; NO recalcular geometría para evitar parpadeo.
         self._render_text()
-        self._schedule_layout()
 
     def _display_subtitle(self) -> str:
         base = str(self._raw_subtitle or "")
@@ -1685,9 +1695,9 @@ class ProgressDialog(tk.Frame):
 
     # ---- Internos ----
     def _update_counts(self):
-        # Renderiza siempre (activar/desactivar + cambios de done/total) sin desbordes
+        # Renderiza siempre (activar/desactivar + cambios de done/total) sin desbordes.
+        # NO recalcular geometría: evita redibujos de place()/Canvas.
         self._render_text()
-        self._schedule_layout()
 
 
     def _apply_metrics(self):
@@ -1774,19 +1784,27 @@ class ProgressDialog(tk.Frame):
         bar_h = max(int(lay["bar_min_h_px"]), int(H * float(lay["bar_h_rel_h"])))
         bar_h = min(bar_h, inner_h)
 
+        # Debounce duro de redibujos: si no cambió la geometría, no tocamos place()/Canvas.
+        _geom_key = (int(W), int(H), int(icon_w), int(info_w), int(inner_w), int(inner_h), int(bar_w), int(bar_h))
+        if getattr(self, "_last_geom_key", None) == _geom_key:
+            return
+        self._last_geom_key = _geom_key
+
         self.progress.set_size(bar_w, bar_h, radius=lay["bar_radius_px"])
 
-        y_bar  = info_pad_top + int(float(lay["bar_top_rel_inner"]) * inner_h)
-        y_gap1 =              int(float(lay["gap_bar_title_rel_inner"]) * inner_h)
-        y_gap2 =              int(float(lay["gap_title_sub_rel_inner"]) * inner_h)
+        # Coordenadas desde el borde superior: barra -> título -> subtítulo (misma ancla "nw")
+        y_bar = info_pad_top + int(float(lay.get("bar_top_rel_inner", 1/(PHI*9))) * inner_h)
+
+        gap_bar_title = int(float(lay.get("gap_bar_title_rel_inner", 1/(PHI*12))) * inner_h)
+
+        # Espacio "considerable" entre título y subtítulo (φ-relativo). Se respeta token y se impone mínimo.
+        gap_title_sub = int(float(lay.get("gap_title_sub_rel_inner", 1/(PHI*7))) * inner_h)
+        gap_title_sub = max(int(H * (1/(PHI*12))), int(gap_title_sub))  # mínimo φ-relativo
 
         # Barra dentro de la caja derecha: alineada de izquierda a derecha (respeta padding)
         self.progress.place(x=info_pad_left, y=y_bar)  # dentro de info_box
 
-        y_title = info_pad_top + int(float(lay.get("title_top_rel_inner", (1/(PHI*4)))) * inner_h)
-        # Texto: layout fijo para evitar jitter y GARANTIZAR el subtítulo en posición fija.
-        sub_present = bool((self._display_subtitle() or "").strip())
-
+        # Métricas de línea: reservamos altura fija para evitar re-place en cada actualización de texto
         def _linespace(font_obj, default_px: int) -> int:
             try:
                 ls = int(font_obj.metrics("linespace") or 0)
@@ -1812,71 +1830,51 @@ class ProgressDialog(tk.Frame):
         lh_s = _linespace(fs, 14) if fs is not None else 14
 
         max_title_lines_cfg = max(1, int(lay.get("title_max_lines", 3)))
-        max_sub_lines_cfg = max(0, int(lay.get("subtitle_max_lines", 1)))
+        max_sub_lines_cfg   = max(0, int(lay.get("subtitle_max_lines", 1)))
 
-        available_h = max(1, int(inner_h - (y_title - info_pad_top)))
-        subtitle_block_h = int(y_gap2 + lh_s) if sub_present and max_sub_lines_cfg > 0 else 0
-        max_fit_title = max(1, int((available_h - subtitle_block_h) // max(1, lh_t)))
-        self._max_title_lines = max(1, min(max_title_lines_cfg, max_fit_title))
-        self._max_sub_lines = max_sub_lines_cfg if sub_present else 0
+        # Reservas fijas (alto constante): el texto se trunca con elipsis; la geometría NO cambia.
+        title_area_h = int(max_title_lines_cfg * max(1, lh_t))
+        sub_area_h   = int(max_sub_lines_cfg   * max(1, lh_s))
 
+        y_title = int(y_bar + bar_h + gap_bar_title)
+        y_sub   = int(y_title + title_area_h + gap_title_sub)
+
+        # Clamp defensivo al área útil (no debería activarse con los mínimos actuales)
+        bottom_limit = int(info_pad_top + inner_h)
+        y_title = max(int(info_pad_top), min(int(y_title), int(bottom_limit - 1)))
+        if sub_area_h > 0:
+            y_sub = max(int(info_pad_top), min(int(y_sub), int(bottom_limit - sub_area_h)))
+
+        # Límites de líneas constantes y render de texto con elipsis.
+        self._max_title_lines = max_title_lines_cfg
+        self._max_sub_lines   = max_sub_lines_cfg
         self._render_text()
 
-        def _count_lines(text_value: str) -> int:
-            text_value = str(text_value or "")
-            if not text_value.strip():
-                return 0
-            return text_value.count("\n") + 1
+        # Helpers: place solo si cambió (micro-optimización; evita "re-ubicación" redundante)
+        def _place_if_changed(attr_name: str, widget, *, x: int, y: int, width: int, height: int, anchor: str = "nw") -> None:
+            key = (int(x), int(y), int(width), int(height), str(anchor))
+            if getattr(self, attr_name, None) == key:
+                return
+            setattr(self, attr_name, key)
+            widget.place(x=int(x), y=int(y), width=int(width), height=int(height), anchor=str(anchor))
 
-        title_lines = max(0, min(self._max_title_lines, _count_lines(self.lbl_main.cget("text"))))
-        sub_lines = max(0, min(self._max_sub_lines, _count_lines(self.lbl_sub.cget("text"))))
-
-        title_h = int(title_lines * lh_t)
-        sub_h = int(sub_lines * lh_s)
-
-        y_sub = info_pad_top + int(float(lay.get("subtitle_top_rel_inner", (1/(PHI*3)))) * inner_h)
-
-        # Anti-recorte (sin reflow): si el bloque se sale, subirlo lo máximo posible.
-        try:
-            bottom_limit = int(info_pad_top + inner_h)
-            block_bottom = max(int(y_bar + int(getattr(self.progress, 'height', 0) or 0)),
-                               int(y_sub + sub_h) if sub_h > 0 else int(y_title + title_h))
-            if block_bottom > bottom_limit:
-                overshoot = int(block_bottom - bottom_limit)
-                avail_up = max(0, int(y_bar - info_pad_top))
-                shift = min(overshoot, avail_up)
-                if shift > 0:
-                    y_bar -= shift
-                    y_title -= shift
-                    y_sub -= shift
-                    try:
-                        self.progress.place_configure(y=y_bar)
-                    except Exception:
-                        try:
-                            self.progress.place(x=info_pad_left, y=y_bar)
-                        except Exception:
-                            pass
-        except Exception:
-            pass
-
-
-        # Title
-        if title_h <= 0:
+        # Title (ancla superior)
+        if title_area_h <= 0:
             try:
                 self.lbl_main.place_forget()
             except Exception:
                 pass
         else:
-            self.lbl_main.place(x=info_pad_left, y=y_title, width=inner_w, height=int(title_h))
+            _place_if_changed("_pos_title", self.lbl_main, x=info_pad_left, y=y_title, width=inner_w, height=title_area_h, anchor="nw")
 
-        # Subtitle (justo debajo del título)
-        if sub_h <= 0:
+        # Subtitle (ancla superior)
+        if sub_area_h <= 0:
             try:
                 self.lbl_sub.place_forget()
             except Exception:
                 pass
         else:
-            self.lbl_sub.place(x=info_pad_left, y=y_sub, width=inner_w, height=int(sub_h))
+            _place_if_changed("_pos_sub", self.lbl_sub, x=info_pad_left, y=y_sub, width=inner_w, height=sub_area_h, anchor="nw")
 
 # Pre-registro del font preferido (Windows) para que Tk lo vea aunque no esté instalado globalmente.
 try:
