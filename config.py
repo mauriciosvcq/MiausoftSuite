@@ -34,14 +34,14 @@ def _font_candidate_paths(family: str) -> list[Path]:
             pass
 
     dirs += [
-        base_dir / "fonts",
-        Path.cwd() / "fonts",
+        base_dir / "utilities",
+        Path.cwd() / "utilities",
     ]
 
     if _is_windows():
         windir = os.getenv("WINDIR")
         if windir:
-            dirs.append(Path(windir) / "Fonts")
+            dirs.append(Path(windir) / "utilities")
 
     if family_norm == "comfortaa":
         names = [
@@ -238,7 +238,7 @@ BASE_CONFIG: Dict[str, Any] = {
         "scroll_arrow":   "#222222",
     },
 
-    "fonts": {
+    "utilities": {
         "family": "Comfortaa",
         "fallback_family": "Segoe UI",
 
@@ -466,9 +466,9 @@ APP_OVERRIDES: Dict[str, Any] = {
             "topmost": True,
             "transient_to_parent": False,
         },
-        "fonts": {
+        "utilities": {
             "title": {"rel_px": 1/(PHI*25), "px": phi_px_h(32, min_px=12), "bold": True,  "italic": False},
-            "sub":   {"rel_px": 1/(PHI*4),  "px": phi_px_h(46, min_px=9),  "bold": True,  "italic": False},
+            "sub":   {"rel_px": 1/(PHI*28),  "px": phi_px_h(46, min_px=9),  "bold": True,  "italic": False},
         },
         "layout": {
             "icon_box_width_rel_w": 1/(PHI*2),
@@ -483,11 +483,11 @@ APP_OVERRIDES: Dict[str, Any] = {
             "bar_min_h_px": phi_px_h(40, min_px=int(PHI*6)),
             "bar_radius_px": int(PHI * 5000),
 
-            "bar_top_rel_inner":       1/(PHI*9),
+            "bar_top_rel_inner":       1/(PHI*7),
             "gap_bar_title_rel_inner": 1/(PHI*12),
             "gap_title_sub_rel_inner": 1/(PHI*7),
 
-            "title_top_rel_inner": 1/(PHI*3),
+            "title_top_rel_inner": 1/(PHI*7),
             "subtitle_top_rel_inner": 1/(PHI*1),
 
             "title_max_lines": 3,
@@ -511,7 +511,7 @@ APP_OVERRIDES: Dict[str, Any] = {
             "topmost": False,
             "transient_to_parent": False,
         },
-        "fonts": {
+        "utilities": {
             "title": {"rel_px": 1/(PHI*20), "px": phi_px_h(32, min_px=12), "bold": True,  "italic": False},
             "sub":   {"rel_px": 1/(PHI*15), "px": phi_px_h(42, min_px=12),  "bold": False, "italic": True},
         },
@@ -574,7 +574,7 @@ def design_tokens(app: str | None = None, *, screen_w: int | None = None, screen
     sh = int(screen_h or REF_SCREEN_H)
 
     def rel_px(rel, ref, *, px_fallback: int | None = None):
-        min_px = int((cfg.get("fonts", {}) or {}).get("min_px", phi_px_h(60, min_px=8)))
+        min_px = int((cfg.get("utilities", {}) or {}).get("min_px", phi_px_h(60, min_px=8)))
         try:
             r = float(rel)
             if 0 < r <= 1:
@@ -584,7 +584,7 @@ def design_tokens(app: str | None = None, *, screen_w: int | None = None, screen
         except Exception:
             return max(min_px, int(px_fallback or min_px))
 
-    f = cfg.get("fonts", {}) or {}
+    f = cfg.get("utilities", {}) or {}
     fam = f.get("family", f.get("fallback_family", "Segoe UI"))
     fonts_px = {
         "title": (fam, rel_px((f.get("title", {}) or {}).get("rel_px", 1/(PHI*28)), sh, px_fallback=(f.get("title", {}) or {}).get("px")),
@@ -902,7 +902,7 @@ class Theme:
             import tkinter.font as tkfont
             from tkinter import ttk
 
-            f = cfg.get("fonts", {}) or {}
+            f = cfg.get("utilities", {}) or {}
             fam = f.get("family", f.get("fallback_family", "Segoe UI"))
             fb_fam = f.get("fallback_family", "Segoe UI")
             min_px = int(f.get("min_px", phi_px_h(60, min_px=8)))
@@ -976,7 +976,7 @@ class Theme:
             except Exception:
                 pass
 
-            # Named fonts: cambia la tipografía “por defecto” de Tk (afecta menús, etc.)
+            # Named utilities: cambia la tipografía “por defecto” de Tk (afecta menús, etc.)
             def _safe_named(name: str, *, size: int, weight: str = "normal", slant: str = "roman"):
                 try:
                     nf = tkfont.nametofont(name)
@@ -1127,10 +1127,10 @@ def shared_button_box_px(win_w: int, win_h: int, cfg: Optional[Dict[str, Any]] =
 def shared_button_font_px(win_w: int, win_h: int, cfg: Optional[Dict[str, Any]] = None) -> int:
     """
     Tamaño de fuente responsivo para botones principales (idéntico entre apps).
-    Se basa en fonts.btn.rel_px y se limita para no exceder la altura útil del botón.
+    Se basa en utilities.btn.rel_px y se limita para no exceder la altura útil del botón.
     """
     c = cfg or (globals().get("CONFIG") or get_config(None))
-    f = (c.get("fonts") or {})
+    f = (c.get("utilities") or {})
     btn = (f.get("btn") or {})
     rel = float(btn.get("rel_px", 1/(PHI*40)))
     min_px = int(f.get("min_px", phi_px_h(60, min_px=8)))
@@ -1764,11 +1764,11 @@ class ProgressDialog(tk.Frame):
             pass
 
         # Fuentes (responsivas al alto)
-        fam = cfg["fonts"]["family"]
-        fallback = cfg["fonts"]["fallback_family"]
-        min_px = cfg["fonts"]["min_px"]
-        tcfg = cfg["fonts"]["title"]
-        scfg = cfg["fonts"]["sub"]
+        fam = cfg["utilities"]["family"]
+        fallback = cfg["utilities"]["fallback_family"]
+        min_px = cfg["utilities"]["min_px"]
+        tcfg = cfg["utilities"]["title"]
+        scfg = cfg["utilities"]["sub"]
         f_title = _font(fam, fallback, H * float(tcfg["rel_px"]), bold=tcfg["bold"], italic=tcfg["italic"], min_px=min_px)
         f_sub   = _font(fam, fallback, H * float(scfg["rel_px"]), bold=scfg["bold"], italic=scfg["italic"], min_px=min_px)
 
@@ -1878,7 +1878,7 @@ class ProgressDialog(tk.Frame):
 
 # Pre-registro del font preferido (Windows) para que Tk lo vea aunque no esté instalado globalmente.
 try:
-    _pref = ((BASE_CONFIG.get("fonts") or {}).get("family") or "").strip()
+    _pref = ((BASE_CONFIG.get("utilities") or {}).get("family") or "").strip()
     if _pref:
         ensure_font_registered(_pref)
 except Exception:
