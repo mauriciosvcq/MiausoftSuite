@@ -4,24 +4,58 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="20c79d8c-f7b4-4b8d-bdbe-6cd371c924ae" name="Changes" comment="solución a subtítulo faltante">
-      <change afterPath="$PROJECT_DIR$/build_win.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/installer_win.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/LICENSE" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/build_installer.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/config.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/conversoratxtcompleto.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/conversoratxtporcapitulos.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/divideyfusionatxt.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/fonts/Comfortaa.ttf" beforeDir="false" afterPath="$PROJECT_DIR$/utilities/Comfortaa.ttf" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/fonts/OFL.txt" beforeDir="false" afterPath="$PROJECT_DIR$/utilities/OFL.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/fonts/README.txt" beforeDir="false" afterPath="$PROJECT_DIR$/utilities/README.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/fonts/static/Comfortaa-Bold.ttf" beforeDir="false" afterPath="$PROJECT_DIR$/utilities/static/Comfortaa-Bold.ttf" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/fonts/static/Comfortaa-Light.ttf" beforeDir="false" afterPath="$PROJECT_DIR$/utilities/static/Comfortaa-Light.ttf" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/fonts/static/Comfortaa-Medium.ttf" beforeDir="false" afterPath="$PROJECT_DIR$/utilities/static/Comfortaa-Medium.ttf" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/fonts/static/Comfortaa-Regular.ttf" beforeDir="false" afterPath="$PROJECT_DIR$/utilities/static/Comfortaa-Regular.ttf" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/fonts/static/Comfortaa-SemiBold.ttf" beforeDir="false" afterPath="$PROJECT_DIR$/utilities/static/Comfortaa-SemiBold.ttf" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/reemplazacaracteresentxt.py" beforeDir="false" />
+    <list default="true" id="20c79d8c-f7b4-4b8d-bdbe-6cd371c924ae" name="Changes" comment="reorganización">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/_tmp_dispatcher/dispatcher_tmp.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_ConversorTXT_Completo/MiausoftSuite_ConversorTXT_Completo/Analysis-00.toc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_ConversorTXT_Completo/MiausoftSuite_ConversorTXT_Completo/EXE-00.toc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_ConversorTXT_Completo/MiausoftSuite_ConversorTXT_Completo/MiausoftSuite_ConversorTXT_Completo.pkg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_ConversorTXT_Completo/MiausoftSuite_ConversorTXT_Completo/PKG-00.toc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_ConversorTXT_Completo/MiausoftSuite_ConversorTXT_Completo/PYZ-00.pyz" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_ConversorTXT_Completo/MiausoftSuite_ConversorTXT_Completo/PYZ-00.toc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_ConversorTXT_Completo/MiausoftSuite_ConversorTXT_Completo/base_library.zip" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_ConversorTXT_Completo/MiausoftSuite_ConversorTXT_Completo/generated-953ef2ec82a844ada62f2f6ac8a994b7c08032852abffcbd040562949baf64a8.ico" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_ConversorTXT_Completo/MiausoftSuite_ConversorTXT_Completo/warn-MiausoftSuite_ConversorTXT_Completo.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_ConversorTXT_Completo/MiausoftSuite_ConversorTXT_Completo/xref-MiausoftSuite_ConversorTXT_Completo.html" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_ConversorTXT_PorCapitulos/MiausoftSuite_ConversorTXT_PorCapitulos/Analysis-00.toc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_ConversorTXT_PorCapitulos/MiausoftSuite_ConversorTXT_PorCapitulos/EXE-00.toc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_ConversorTXT_PorCapitulos/MiausoftSuite_ConversorTXT_PorCapitulos/MiausoftSuite_ConversorTXT_PorCapitulos.pkg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_ConversorTXT_PorCapitulos/MiausoftSuite_ConversorTXT_PorCapitulos/PKG-00.toc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_ConversorTXT_PorCapitulos/MiausoftSuite_ConversorTXT_PorCapitulos/PYZ-00.pyz" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_ConversorTXT_PorCapitulos/MiausoftSuite_ConversorTXT_PorCapitulos/PYZ-00.toc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_ConversorTXT_PorCapitulos/MiausoftSuite_ConversorTXT_PorCapitulos/base_library.zip" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_ConversorTXT_PorCapitulos/MiausoftSuite_ConversorTXT_PorCapitulos/generated-953ef2ec82a844ada62f2f6ac8a994b7c08032852abffcbd040562949baf64a8.ico" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_ConversorTXT_PorCapitulos/MiausoftSuite_ConversorTXT_PorCapitulos/warn-MiausoftSuite_ConversorTXT_PorCapitulos.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_ConversorTXT_PorCapitulos/MiausoftSuite_ConversorTXT_PorCapitulos/xref-MiausoftSuite_ConversorTXT_PorCapitulos.html" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_DivisorFusionador/MiausoftSuite_DivisorFusionador/Analysis-00.toc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_DivisorFusionador/MiausoftSuite_DivisorFusionador/EXE-00.toc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_DivisorFusionador/MiausoftSuite_DivisorFusionador/MiausoftSuite_DivisorFusionador.pkg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_DivisorFusionador/MiausoftSuite_DivisorFusionador/PKG-00.toc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_DivisorFusionador/MiausoftSuite_DivisorFusionador/PYZ-00.pyz" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_DivisorFusionador/MiausoftSuite_DivisorFusionador/PYZ-00.toc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_DivisorFusionador/MiausoftSuite_DivisorFusionador/base_library.zip" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_DivisorFusionador/MiausoftSuite_DivisorFusionador/generated-953ef2ec82a844ada62f2f6ac8a994b7c08032852abffcbd040562949baf64a8.ico" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_DivisorFusionador/MiausoftSuite_DivisorFusionador/warn-MiausoftSuite_DivisorFusionador.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_DivisorFusionador/MiausoftSuite_DivisorFusionador/xref-MiausoftSuite_DivisorFusionador.html" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_ReemplazadorCaracteres/MiausoftSuite_ReemplazadorCaracteres/Analysis-00.toc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_ReemplazadorCaracteres/MiausoftSuite_ReemplazadorCaracteres/EXE-00.toc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_ReemplazadorCaracteres/MiausoftSuite_ReemplazadorCaracteres/MiausoftSuite_ReemplazadorCaracteres.pkg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_ReemplazadorCaracteres/MiausoftSuite_ReemplazadorCaracteres/PKG-00.toc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_ReemplazadorCaracteres/MiausoftSuite_ReemplazadorCaracteres/PYZ-00.pyz" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_ReemplazadorCaracteres/MiausoftSuite_ReemplazadorCaracteres/PYZ-00.toc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_ReemplazadorCaracteres/MiausoftSuite_ReemplazadorCaracteres/base_library.zip" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_ReemplazadorCaracteres/MiausoftSuite_ReemplazadorCaracteres/generated-953ef2ec82a844ada62f2f6ac8a994b7c08032852abffcbd040562949baf64a8.ico" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_ReemplazadorCaracteres/MiausoftSuite_ReemplazadorCaracteres/warn-MiausoftSuite_ReemplazadorCaracteres.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/build/MiausoftSuite_ReemplazadorCaracteres/MiausoftSuite_ReemplazadorCaracteres/xref-MiausoftSuite_ReemplazadorCaracteres.html" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/dist/MiausoftSuite_ConversorTXT_Completo.exe" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/dist/MiausoftSuite_ConversorTXT_PorCapitulos.exe" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/dist/MiausoftSuite_DivisorFusionador.exe" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/dist/MiausoftSuite_ReemplazadorCaracteres.exe" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/spec/MiausoftSuite_ConversorTXT_Completo.spec" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/spec/MiausoftSuite_ConversorTXT_PorCapitulos.spec" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/spec/MiausoftSuite_Dispatcher.spec" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/spec/MiausoftSuite_DivisorFusionador.spec" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/release/spec/MiausoftSuite_ReemplazadorCaracteres.spec" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -68,29 +102,29 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "Python.build_installer.executor": "Run",
-    "Python.build_win.executor": "Run",
-    "Python.config.executor": "Run",
-    "Python.conversoratxtcompleto.executor": "Run",
-    "Python.conversoratxtporcapitulos.executor": "Run",
-    "Python.installer_win.executor": "Run",
-    "Python.reemplazacaracteresentxt.executor": "Run",
-    "Python.reemplazacaracteresentxt.pyw.executor": "Run",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "git-widget-placeholder": "main",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "settings.editor.selected.configurable": "com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;Python.build_installer.executor&quot;: &quot;Run&quot;,
+    &quot;Python.build_win.executor&quot;: &quot;Run&quot;,
+    &quot;Python.config.executor&quot;: &quot;Run&quot;,
+    &quot;Python.conversoratxtcompleto.executor&quot;: &quot;Run&quot;,
+    &quot;Python.conversoratxtporcapitulos.executor&quot;: &quot;Run&quot;,
+    &quot;Python.installer_win.executor&quot;: &quot;Run&quot;,
+    &quot;Python.reemplazacaracteresentxt.executor&quot;: &quot;Run&quot;,
+    &quot;Python.reemplazacaracteresentxt.pyw.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
@@ -113,7 +147,9 @@
       <workItem from="1767545063500" duration="1298000" />
       <workItem from="1769226505506" duration="9496000" />
       <workItem from="1769274003143" duration="22799000" />
-      <workItem from="1769616568706" duration="1772000" />
+      <workItem from="1769616568706" duration="3053000" />
+      <workItem from="1769791674696" duration="1000" />
+      <workItem from="1769791742304" duration="693000" />
     </task>
     <task id="LOCAL-00001" summary="faltantes">
       <option name="closed" value="true" />
@@ -147,7 +183,23 @@
       <option name="project" value="LOCAL" />
       <updated>1769276891156</updated>
     </task>
-    <option name="localTasksCounter" value="5" />
+    <task id="LOCAL-00005" summary="reorganización">
+      <option name="closed" value="true" />
+      <created>1769622582440</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1769622582440</updated>
+    </task>
+    <task id="LOCAL-00006" summary="reorganización">
+      <option name="closed" value="true" />
+      <created>1769622992519</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1769622992519</updated>
+    </task>
+    <option name="localTasksCounter" value="7" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -184,7 +236,8 @@
   <component name="VcsManagerConfiguration">
     <MESSAGE value="faltantes" />
     <MESSAGE value="solución a subtítulo faltante" />
-    <option name="LAST_COMMIT_MESSAGE" value="solución a subtítulo faltante" />
+    <MESSAGE value="reorganización" />
+    <option name="LAST_COMMIT_MESSAGE" value="reorganización" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/MiausoftSuite$reemplazacaracteresentxt.coverage" NAME="reemplazacaracteresentxt Coverage Results" MODIFIED="1769290021715" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
